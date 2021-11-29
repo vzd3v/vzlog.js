@@ -8,25 +8,6 @@
  */
 class VZlog {
 
-	// default settings
-	collect_user_agent = false;
-	send_browser_data_every_event=false;
-	click_filters=null;
-	scroll_log_if_doc_is_larger_than_window = 150; // % of viewport
-	scroll_breakpoints = [60, 90]; // % of page height
-
-	//private properties
-	_api_url = '';
-	_browser_data = null;
-	_last_event = null;
-
-	_browser_data_is_submitted_key='vzl_static_submitted';
-
-	_scroll_breakpoints_status={};
-
-	_listener_click=null;
-	_listener_scroll=null;
-
 	/**
 	 * 
 	 * Set up
@@ -41,23 +22,48 @@ class VZlog {
 	 * 
 	 */
 	constructor(api_url, track_events) {
+
 		if (!api_url) { return; }
 		this._api_url = api_url;
+
+		// default settings
+		this.collect_user_agent = false;
+		this.send_browser_data_every_event=false;
+		this.click_filters=null;
+		this.scroll_log_if_doc_is_larger_than_window = 150; // % of viewport
+		this.scroll_breakpoints = [60, 90]; // % of page height
+
+		//private properties
+		this._browser_data = null;
+		this._last_event = null;
+
+		this._browser_data_is_submitted_key='vzl_static_submitted';
+
+		this._scroll_breakpoints_status={};
+
+		this._listener_click=null;
+		this._listener_scroll=null;
+
+		// we shouldn't track scroll event if page is already reached scroll breakpoint at the start
+		this._scroll_start_position=this._getVerticalScrollPercent();
+
+		//constructor method start
+
 		var _this = this;
 
 		if(!localStorage.getItem(this._browser_data_is_submitted_key)) { this._collectBrowserData(true); }
 
 		if (track_events) {
 			if (track_events == 'click' || (Array.isArray(track_events)&&track_events.indexOf('click') > -1) || (this._isObject(track_events) && 'click' in track_events)) {
-				if(this._isObject(track_events)&&track_events['click']) {
-					_this.click_filters=track_events['click'];
+				if(this._isObject(track_events)&&track_events.click) {
+					_this.click_filters=track_events.click;
 				}
 				this._listener_click=function (e) { _this._trackClick(e, _this); };
 				window.addEventListener('mouseup', this._listener_click);
 			}
 			if (track_events == 'scroll' || (Array.isArray(track_events)&&track_events.indexOf('scroll') > -1) || (this._isObject(track_events) && 'scroll' in track_events)) {
-				if(this._isObject(track_events)&&track_events['scroll']) {
-					_this.scroll_breakpoints=track_events['scroll'];
+				if(this._isObject(track_events)&&track_events.scroll) {
+					_this.scroll_breakpoints=track_events.scroll;
 				}
 				this._listener_scroll=function () { _this._trackVerticalScroll(_this); };
 				document.addEventListener('scroll', this._listener_scroll, {'passive':true});
@@ -87,7 +93,7 @@ class VZlog {
 			data.screen[k[i]] = window.screen[k[i]] ? window.screen[k[i]] : null;
 		}
 		data.screen.orientation = {
-			'angle': window.screen.orientation ? window.screen.orientation['angle'] : 0,
+			'angle': window.screen.orientation ? window.screen.orientation.angle : 0,
 			'type': window.screen.orientation.type ? window.screen.orientation.type : null,
 			'type_calc': window.innerWidth > window.innerHeight ? 'landscape' : 'portrait',
 		};
@@ -288,10 +294,10 @@ class VZlog {
 	 * or undefined if document height is less than this.scroll_log_if_doc_is_larger_than_window
 	 */
 	_getVerticalScrollPercent() {
-		var scroll_position = window.pageYOffset || document.body.scrollTop 
-			|| document.documentElement.scrollTop || 0;
-		var window_height = window.innerHeight || document.documentElement.clientHeight 
-			|| document.body.clientHeight || 0;
+		var scroll_position = window.pageYOffset || document.body.scrollTop || 
+			document.documentElement.scrollTop || 0;
+		var window_height = window.innerHeight || document.documentElement.clientHeight || 
+			document.body.clientHeight || 0;
 		var document_height = Math.max(document.body.scrollHeight || 0, 
 			document.documentElement.scrollHeight || 0, 
 			document.body.offsetHeight || 0, 
