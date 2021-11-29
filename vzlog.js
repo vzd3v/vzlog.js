@@ -1,37 +1,76 @@
 /**
+ * 
  * A simple dependency-free tracker of user behavior for web. 
+ * This implementation doesn't support IE due to using ES6 class. 
+ * GitHub and documentation: {@link https://github.com/vzd3v/vzlog.js | GitHub}. 
  * @author Vasily Zakharov <vz@vz.team>
+ * 
  */
 class VZlog {
+
+	// default settings
 	collect_user_agent = false;
+	send_browser_data_every_event=false;
+	click_filters=null;
+	scroll_log_if_doc_is_larger_than_window = 150; // % of viewport
+	scroll_breakpoints = [60, 90]; // % of page height
 
-	api_url = '';
-	static_data = null;
-	last_event = null;
-	_static_data_is_submitted_key='vzl_static_submitted';
-	//scroll_log_if_height_more_than = 150; // % of viewport
-	//scroll_breakpoints = [50, 80]; // % of page height
+	//private properties
+	_api_url = '';
+	_browser_data = null;
+	_last_event = null;
 
+	_browser_data_is_submitted_key='vzl_static_submitted';
+
+	_scroll_breakpoints_status={};
+
+	_listener_click=null;
+	_listener_scroll=null;
+
+	/**
+	 * 
+	 * Set up
+	 * @param {string} api_url URL to API where JSON will be sent via POST 
+	 * @param {string|Array|Object} track_events which events to track. 
+	 * 		Examples: 
+	 * 			'click' 											 or 
+	 * 			['click','scroll'] 									 or 
+	 * 			{'click':'a,button.class','scroll':true} 			 or 
+	 * 			{'click':['a','button.class'],'scroll':[50,80]} 
+	 * See more on {@link https://github.com/vzd3v/vzlog.js | GitHub}. 
+	 * 
+	 */
 	constructor(api_url, track_events) {
 		if (!api_url) { return; }
-		this.api_url = api_url;
+		this._api_url = api_url;
 		var _this = this;
 
-		if(!localStorage.getItem(this._static_data_is_submitted_key)) { this._collectStaticData(); }
+		if(!localStorage.getItem(this._browser_data_is_submitted_key)) { this._collectBrowserData(true); }
 
 		if (track_events) {
 			if (track_events == 'click' || (Array.isArray(track_events)&&track_events.indexOf('click') > -1) || (this._isObject(track_events) && 'click' in track_events)) {
-				let click_filters=this._isObject(track_events)?track_events['click']:null;
-				window.addEventListener('mouseup', function (e) { _this._trackClick(e, _this, click_filters); });
+				if(this._isObject(track_events)&&track_events['click']) {
+					_this.click_filters=track_events['click'];
+				}
+				this._listener_click=function (e) { _this._trackClick(e, _this); };
+				window.addEventListener('mouseup', this._listener_click);
+			}
+			if (track_events == 'scroll' || (Array.isArray(track_events)&&track_events.indexOf('scroll') > -1) || (this._isObject(track_events) && 'scroll' in track_events)) {
+				if(this._isObject(track_events)&&track_events['scroll']) {
+					_this.scroll_breakpoints=track_events['scroll'];
+				}
+				this._listener_scroll=function () { _this._trackVerticalScroll(_this); };
+				document.addEventListener('scroll', this._listener_scroll, {'passive':true});
 			} 
 		}
 	}
 
 	/**
-	 * Collect data independent of user actions on the page
+	 * Collect data independent of user actions on the page. Usually is sent once. 
+	 * @param {boolean} send_event if true, send event '_browser_data' with collected data
 	 * @returns {Object} collected data
 	 */
-	_collectStaticData() {
+	_collectBrowserData(send_event) {
 		var data = {
 			'language': navigator.language ? navigator.language : null,
 			'timezone_str': null,
@@ -57,28 +96,32 @@ class VZlog {
 			'memory': typeof navigator.deviceMemory !='undefined' ? navigator.deviceMemory : null,
 			'cpu_cores': typeof navigator.hardwareConcurrency !='undefined' ? navigator.hardwareConcurrency : null,
 		};
-		this.static_data = data;
+		this._browser_data = data;
 
-		this.event('browser_data',data);
-		localStorage.setItem(this._static_data_is_submitted_key,'1');
+		if(send_event) { this.event('_browser_data',data); }
+
+		localStorage.setItem(this._browser_data_is_submitted_key,'1');
 
 		return data;
 	}
 
 	/**
-	 * Tracking clicks. Can be used as listener on mouseup.
+	 * Tracking clicks. Should be used as listener on mouseup.
+	 * If this.click_filters is set, track clicks only on elements (or ANY of its parents) that match a css-selector. 
+	 * Example: 	'a,button.class,button[type="submit"],.class'. 
+	 * 				Or Array: ['a','button.class','button[type=submit]', '.class'] 
+	 * If click_filters=='only_outbound_links', track ONLY clicks on outbound links. 
+	 * If click_filters is Array and has 'only_outbound_links' value, then links (a tag) will be tracked only if outbound.
 	 * @param {PointerEvent|MouseEvent} e 
 	 * @param {VZlog} _this 
-	 * @param {string|Array} filter If set, track clicks only on elements (or ANY of its parents) that match a css-selector. 
-	 * Example: 'a,button.class,button[type="submit"],.class'. Or Array: ['a','button.class','button[type=submit]', '.class'] 
-	 * If filter=='only_outbound_links', track ONLY clicks on outbound links. 
-	 * If filter is Array and has 'only_outbound_links' value, then links (a tag) will be tracked only if outbound.
 	 */
-	_trackClick(e, _this, filter) {
+	_trackClick(e, _this) {
 		var ev_btn=e.button; // 0=main(left), 1=middle(mouse wheel), 2=secondary(right) https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
 		if([0,1].indexOf(ev_btn)==-1) { return; } // track only main and new tab (wheel)
 		
 		var el = e.target;
+
+		var filter=_this.click_filters;
 
 		var only_outbound_links=false;
 		if(filter==='only_outbound_links') { only_outbound_links=true; filter='a'; }
@@ -93,7 +136,7 @@ class VZlog {
 		}
 		if(filter&&!el.closest(filter)) { return; }
 
-		this.last_event=e;
+		this._last_event=e;
 		var el_tag = el.tagName.toLowerCase();
 		var params={};
 
@@ -115,15 +158,47 @@ class VZlog {
 		params.el = {
 			'el': _this.getPrettyElementName(el),
 			'path': _this.getPrettyPathToElement(el),
-			'id': el.id,
-			'className': el.className,
 			'tagName': el_tag,
 		};
+		if(el.className) { params.el.className=el.className; }
+		if(el.id) { params.el.id=el.id; }
+
 		params.event = {
 			'button': ev_btn, // 0=main(left), 1=middle(mouse wheel), 2=secondary(right) https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
 		};
 
 		_this.event('click', params);
+	}
+
+	/**
+	 * Tracking vertical scrolling. Send events when it reaches this.scroll_breakpoints
+	 * @param {VZlog} _this
+	 */
+	_trackVerticalScroll(_this) {
+		var cur_scroll = _this._getVerticalScrollPercent();
+
+		// if document height is too small, remove event listener
+		if(!cur_scroll) {
+			document.removeEventListener('scroll',_this._listener_scroll); 
+			return; 
+		}
+
+		var bp_status=_this._scroll_breakpoints_status;
+		
+		var scroll_breakpoints=_this.scroll_breakpoints;
+
+		var bp_to_send=[];
+
+		for(let bp of scroll_breakpoints) {
+			let bp_is_sent=((bp in bp_status)&&bp_status[bp]) ? true : false;
+			if(!bp_is_sent && cur_scroll>bp) {
+				bp_to_send.push(bp);
+				_this._scroll_breakpoints_status[bp]=bp_status[bp]=true;
+			}
+		}
+		if(bp_to_send.length>0) {
+			_this.event('scroll',{'breakpoints':bp_to_send});
+		}
 	}
 
 	/**
@@ -203,15 +278,46 @@ class VZlog {
 				obj_to_send.params = params;
 			}
 		}
+		if(this.send_browser_data_every_event) { obj_to_send.params._browser_data=this._collectBrowserData(); }
+
 		this._send(obj_to_send);
 	}
 
 	/**
-	 * Sends data to server
+	 * @returns current vertical scroll position in percent 
+	 * or undefined if document height is less than this.scroll_log_if_doc_is_larger_than_window
+	 */
+	_getVerticalScrollPercent() {
+		var scroll_position = window.pageYOffset || document.body.scrollTop 
+			|| document.documentElement.scrollTop || 0;
+		var window_height = window.innerHeight || document.documentElement.clientHeight 
+			|| document.body.clientHeight || 0;
+		var document_height = Math.max(document.body.scrollHeight || 0, 
+			document.documentElement.scrollHeight || 0, 
+			document.body.offsetHeight || 0, 
+			document.documentElement.offsetHeight || 0, 
+			document.body.clientHeight || 0, 
+			document.documentElement.clientHeight || 0);
+		console.log({scroll_position:scroll_position,window_height:window_height,document_height:document_height});
+		if(!document_height||!window_height) { return; } // eliminate the possibility of division by zero
+		if(document_height/window_height<(this.scroll_log_if_doc_is_larger_than_window/100)) { return; } // return nothing if the document isn't large enough than window
+		return (scroll_position + window_height) / document_height * 100;
+	}
+
+	/**
+	 * Sends data to server. 
+	 * Use sendBeacon or XMLHttpRequest for old browsers.
 	 * @param {*} data 
 	 */
 	_send(data) {
-		navigator.sendBeacon(this.api_url, JSON.stringify(data));
+		if(navigator.sendBeacon) {
+			navigator.sendBeacon(this._api_url, JSON.stringify(data));
+		} else {
+			var xhr = new XMLHttpRequest();
+			xhr.open('POST', this._api_url, true);
+			xhr.setRequestHeader('Content-Type', 'application/json');
+			xhr.send(JSON.stringify(data));
+		}
 	}
 
 	/**
@@ -232,21 +338,5 @@ class VZlog {
 		var type = typeof smth;
 		//return smth === Object(smth) && Object.prototype.toString.call(smth) !== '[object Array]' && type != 'function' && smth !== null;
 		return smth === Object(smth) && !Array.isArray(smth) && type !== 'function' && smth !== null;
-	}
-
-	/**
-	 * Simple insecure hash-function
-	 * Source: https://stackoverflow.com/questions/6122571/simple-non-secure-hash-function-for-javascript
-	 * @param {string} str 
-	 * @returns 
-	 */
-	_hash(str) {
-		let hash = 0;
-		for (let i = 0; i < str.length; i++) {
-			const char = str.charCodeAt(i);
-			hash = (hash << 5) - hash + char;
-			hash &= hash; // Convert to 32bit integer
-		}
-		return new Uint32Array([hash])[0].toString(36);
 	}
 }
