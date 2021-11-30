@@ -1,7 +1,7 @@
 /**
  * 
  * A simple dependency-free tracker of user behavior for web. 
- * This implementation doesn't support IE due to using ES6 class. 
+ * This implementation doesn't support old browsers (e.g. IE) due to the use of ES6.
  * GitHub and documentation: {@link https://github.com/vzd3v/vzlog.js | GitHub}. 
  * @author Vasily Zakharov <vz@vz.team>
  * 
@@ -26,10 +26,11 @@ class VZlog {
 		if (!api_url) { return; }
 		this._api_url = api_url;
 
+		// Unfortunately, class fields are not widely supported yet.
 		// default settings
 		this.collect_user_agent = false;
 		this.send_browser_data_every_event=false;
-		this.click_filters=null;
+		this.click_filters='a'; 
 		this.scroll_log_if_doc_is_larger_than_window = 150; // % of viewport
 		this.scroll_breakpoints = [60, 90]; // % of page height
 
@@ -44,31 +45,26 @@ class VZlog {
 		this._listener_click=null;
 		this._listener_scroll=null;
 
-		// we shouldn't track scroll event if page is already reached scroll breakpoint at the start
-		this._scroll_start_position=this._getVerticalScrollPercent();
-
 		//constructor method start
 
 		var _this = this;
 
 		if(!localStorage.getItem(this._browser_data_is_submitted_key)) { this._collectBrowserData(true); }
 
-		if (track_events) {
-			if (track_events == 'click' || (Array.isArray(track_events)&&track_events.indexOf('click') > -1) || (this._isObject(track_events) && 'click' in track_events)) {
-				if(this._isObject(track_events)&&track_events.click) {
-					_this.click_filters=track_events.click;
-				}
-				this._listener_click=function (e) { _this._trackClick(e, _this); };
-				window.addEventListener('mouseup', this._listener_click);
+		if (!track_events || track_events == 'click' || (Array.isArray(track_events)&&track_events.indexOf('click') > -1) || (this._isObject(track_events) && 'click' in track_events)) {
+			if(this._isObject(track_events)&&track_events.click) {
+				_this.click_filters=track_events.click;
 			}
-			if (track_events == 'scroll' || (Array.isArray(track_events)&&track_events.indexOf('scroll') > -1) || (this._isObject(track_events) && 'scroll' in track_events)) {
-				if(this._isObject(track_events)&&track_events.scroll) {
-					_this.scroll_breakpoints=track_events.scroll;
-				}
-				this._listener_scroll=function () { _this._trackVerticalScroll(_this); };
-				document.addEventListener('scroll', this._listener_scroll, {'passive':true});
-			} 
+			this._listener_click=function (e) { _this._trackClick(e, _this); };
+			window.addEventListener('mouseup', this._listener_click);
 		}
+		if (!track_events || track_events == 'scroll' || (Array.isArray(track_events)&&track_events.indexOf('scroll') > -1) || (this._isObject(track_events) && 'scroll' in track_events)) {
+			if(this._isObject(track_events)&&track_events.scroll) {
+				_this.scroll_breakpoints=track_events.scroll;
+			}
+			this._listener_scroll=function () { _this._trackVerticalScroll(_this); };
+			document.addEventListener('scroll', this._listener_scroll, {'passive':true});
+		} 
 	}
 
 	/**
