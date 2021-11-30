@@ -6,36 +6,42 @@
  * @author Vasily Zakharov <vz@vz.team>
  * 
  */
-class VZlog {
+ class VZlog {
 
 	/**
 	 * 
 	 * Set up
 	 * @param {string} api_url URL to API where JSON will be sent via POST 
-	 * @param {string|Array|Object} [track_events] which events to track. 
+	 * @param {string|Array|Object} [options] which events to track. 
 	 * 		Examples: 
 	 * 			'click' 											 or 
 	 * 			['click','scroll'] 									 or 
 	 * 			{'click':'a,button.class','scroll':true} 			 or 
-	 * 			{'click':['a','button.class'],'scroll':[50,80]} 
+	 * 			{'click':{'on':['a','button.class']},'scroll':{'breakpoints':[50,80]}} 
 	 * See more on {@link https://github.com/vzd3v/vzlog.js | GitHub}. 
 	 * 
 	 */
-	constructor(api_url, track_events) {
+	constructor(api_url, options) {
 
 		if (!api_url) { return; }
 		this._api_url = api_url;
 
-		// Unfortunately, class fields are not widely supported yet.
-		// default settings
-		this.track_events = ['browser','click','scroll'];
-		this.collect_user_agent = false;
-		this.send_browser_data_every_event=false;
-		this.click_filters='only_outbound_links'; 
-		this.scroll_log_if_doc_is_larger_than_window = 150; // % of viewport
-		this.scroll_breakpoints = [60, 90]; // % of page height
+		this.default_options={
+			'browser': {
+				'user_agent': false,
+				'once_per_user': true,
+			},
+			'click': {
+				'on': 'only_outbound_links',
+			},
+			'scroll': {
+				'iflargerthan': 150,
+				'breakpoints': [50,90]
+			}
+		};
 
 		//private properties
+		this._debug=false;
 		this._browser_data = null;
 		this._last_event = null;
 
@@ -49,34 +55,43 @@ class VZlog {
 		// where the logic starts
 
 		var _this = this;
-		track_events = this.track_events = track_events ? track_events : this.track_events;
 
-		// parse parameters
+		this.options=this._deepClone(this.default_options);
 
-		if 	(track_events == 'click' || 
-			(Array.isArray(track_events)&&track_events.indexOf('click') > -1) || 
-			(this._isObject(track_events) && 'click' in track_events)) {
-				if(this._isObject(track_events)&&track_events.click&&(Array.isArray(track_events.scroll) || typeof track_events.click==='string')) {
-					_this.click_filters=track_events.click;
+		if(options && this._isObject(options)) {
+			for(let k in options) {
+				if(this._isObject(options[k])) {
+					Object.assign(this.options[k],options[k]);
 				}
+			}
+		}
+
+		// parsing options
+
+		if 	(options == 'click' 
+			|| (Array.isArray(options)&&options.indexOf('click') > -1) 
+			|| (this._isObject(options) && 'click' in options)) {
+
 				this._listener_click=function (e) { _this._trackClick(e, _this); };
 				window.addEventListener('mouseup', this._listener_click);
 		}
 
-		if 	(track_events == 'scroll' || 
-			(Array.isArray(track_events)&&track_events.indexOf('scroll') > -1) || 
-			(this._isObject(track_events) && 'scroll' in track_events)) {
-				if(this._isObject(track_events)&&Array.isArray(track_events.scroll)) {
-					_this.scroll_breakpoints=track_events.scroll;
-				}
+		if 	(options == 'scroll' 
+			|| (Array.isArray(options)&&options.indexOf('scroll') > -1) 
+			|| (this._isObject(options) && 'scroll' in options)) {
+
 				this._listener_scroll=function () { _this._trackVerticalScroll(_this); };
 				document.addEventListener('scroll', this._listener_scroll, {'passive':true});
 		} 
 
-		if 	(track_events == 'browser' || 
-			(Array.isArray(track_events)&&track_events.indexOf('browser') > -1) || 
-			(this._isObject(track_events) && 'browser' in track_events)) {
-				if(!localStorage.getItem(this._browser_data_is_submitted_key)) { this._collectBrowserData(true); }
+		if 	(options == 'browser' 
+			|| (Array.isArray(options)&&options.indexOf('browser') > -1) 
+			|| (this._isObject(options) && 'browser' in options)) {
+
+				if(!this.options.browser.once_per_user || !localStorage.getItem(this._browser_data_is_submitted_key)) { 
+					this._collectBrowserData(true); 
+					localStorage.setItem(this._browser_data_is_submitted_key,'1');
+				}
 		} 
 	}
 
@@ -90,8 +105,12 @@ class VZlog {
 			'language': navigator.language ? navigator.language : null,
 			'timezone_str': null,
 			'timezone_offset': new Date().getTimezoneOffset()/60,
-			'useragent': this.collect_user_agent ? navigator.userAgent : null,
 		};
+
+		if(this.options.browser.user_agent) {
+			data.useragent = navigator.userAgent;
+		}
+
 		try {
 			data.timezone_str = Intl.DateTimeFormat().resolvedOptions().timeZone;
 		} catch (e) { }
@@ -114,19 +133,20 @@ class VZlog {
 		this._browser_data = data;
 
 		if(send_event) { this.event('_browser_data',data); }
-
-		localStorage.setItem(this._browser_data_is_submitted_key,'1');
-
 		return data;
+	}
+
+	_preserveFilterFor_trackClick(filter) {
+
 	}
 
 	/**
 	 * Tracking clicks. Should be used as listener on mouseup.
-	 * If this.click_filters is set, track clicks only on elements (or ANY of its parents) that match a css-selector. 
+	 * If this.options.click.on is set, track clicks only on elements (or ANY of its parents) that match a css-selector. 
 	 * Example: 	'a,button.class,button[type="submit"],.class'. 
 	 * 				Or Array: ['a','button.class','button[type=submit]', '.class'] 
-	 * If click_filters=='only_outbound_links', track ONLY clicks on outbound links. 
-	 * If click_filters is Array and has 'only_outbound_links' value, then links (a tag) will be tracked only if outbound.
+	 * If options.click.on=='only_outbound_links', track ONLY clicks on outbound links. 
+	 * If options.click.on is Array and has 'only_outbound_links' value, then links (a tag) will be tracked only if outbound.
 	 * @param {PointerEvent|MouseEvent} e 
 	 * @param {VZlog} _this 
 	 */
@@ -136,12 +156,12 @@ class VZlog {
 		
 		var el = e.target;
 
-		var filter=_this.click_filters;
+		var filter=_this.options.click.on;
 
 		var only_outbound_links=false;
 		if(filter==='only_outbound_links') { only_outbound_links=true; filter='a'; }
 		if(Array.isArray(filter)) {
-			filter=_this._clone(filter);
+			filter=filter.slice();
 			let inb_indx=filter.indexOf('only_outbound_links');
 			if(inb_indx>-1) {
 				only_outbound_links=true;
@@ -175,7 +195,7 @@ class VZlog {
 			'path': _this.getPrettyPathToElement(el),
 			'tagName': el_tag,
 		};
-		if(el.className) { params.el.className=el.className; }
+		if(el.className.trim()) { params.el.className=el.className.trim(); }
 		if(el.id) { params.el.id=el.id; }
 
 		params.event = {
@@ -186,7 +206,7 @@ class VZlog {
 	}
 
 	/**
-	 * Tracking vertical scrolling. Send events when it reaches this.scroll_breakpoints
+	 * Tracking vertical scrolling. Send events when it reaches this.options.scroll.breakpoints
 	 * @param {VZlog} _this
 	 */
 	_trackVerticalScroll(_this) {
@@ -200,7 +220,7 @@ class VZlog {
 
 		var bp_status=_this._scroll_breakpoints_status;
 		
-		var scroll_breakpoints=_this.scroll_breakpoints;
+		var scroll_breakpoints=_this.options.scroll.breakpoints;
 
 		var bp_to_send=[];
 
@@ -246,8 +266,8 @@ class VZlog {
 		var el_tag = el.nodeName.toLowerCase();
 		if(el_tag=='body') { return 'body'; }
 
-		var el_className = el.className;
-		var el_class_str = el_className ? ('.' + el.className.replaceAll(' ', '.')) : '';
+		var el_className = el.className.trim();
+		var el_class_str = el_className ? ('.' + el_className.replace(/ +/g, '.')) : '';
 		
 		//var el_siblings = el.parentNode.childNodes;
 		var el_siblings = el.parentNode.querySelectorAll(el_tag+el_class_str);
@@ -279,7 +299,7 @@ class VZlog {
 		var obj_to_send = {};
 
 		if (this._isObject(ev)) {
-			let ev1 = this._clone(ev); // we don't want to affect original ev
+			let ev1 = this._deepClone(ev); // we don't want to affect original ev
 			if (!Object.prototype.hasOwnProperty.call(ev1, 'event')) { return; }
 			obj_to_send.event = ev1.event;
 			delete ev1.event;
@@ -293,14 +313,23 @@ class VZlog {
 				obj_to_send.params = params;
 			}
 		}
-		if(this.send_browser_data_every_event) { obj_to_send.params._browser_data=this._collectBrowserData(); }
+
+		obj_to_send.timestamp=Date.now();
+		obj_to_send.pathname=window.location.pathname;
+		obj_to_send.location={
+			'https': window.location.protocol==='https:' ? true : false
+		};
+
+		if(window.location.port) { obj_to_send.location.port=window.location.port;}
+		if(window.location.search) { obj_to_send.location.search=window.location.search;}
+		if(window.location.hash) { obj_to_send.location.hash=window.location.hash;}
 
 		this._send(obj_to_send);
 	}
 
 	/**
-	 * @returns current vertical scroll position in percent 
-	 * or undefined if document height is less than this.scroll_log_if_doc_is_larger_than_window
+	 * @returns current vertical scroll position in percent
+	 * or undefined if document height is less than this.options.scroll.iflargerthan
 	 */
 	_getVerticalScrollPercent() {
 		var scroll_position = window.pageYOffset || document.body.scrollTop || 
@@ -313,15 +342,24 @@ class VZlog {
 			document.documentElement.offsetHeight || 0, 
 			document.body.clientHeight || 0, 
 			document.documentElement.clientHeight || 0);
-		console.log({scroll_position:scroll_position,window_height:window_height,document_height:document_height});
-		if(!document_height||!window_height) { return; } // eliminate the possibility of division by zero
-		if(document_height/window_height<(this.scroll_log_if_doc_is_larger_than_window/100)) { return; } // return nothing if the document isn't large enough than window
-		return (scroll_position + window_height) / document_height * 100;
+
+		if(this._debug) { console.log({scroll_position,window_height,document_height}); }
+
+		// eliminate the possibility of division by zero
+		if(!document_height||!window_height) { return; } 
+
+		// return nothing if the document isn't large enough than window
+		if(document_height/window_height*100<this.options.scroll.iflargerthan) { return; } 
+
+		var scroll_percent=(scroll_position + window_height) / document_height * 100;
+		if(this._debug) { console.log({scroll_percent}); }
+		
+		return scroll_percent;
 	}
 
 	/**
 	 * Sends data to server. 
-	 * Use sendBeacon or XMLHttpRequest for old browsers.
+	 * Using non-blocking sendBeacon as primary method and XMLHttpRequest for old browsers.
 	 * @param {*} data 
 	 */
 	_send(data) {
@@ -336,11 +374,11 @@ class VZlog {
 	}
 
 	/**
-	 * Clone an object using JSON.stringify
-	 * @param {Object} obj 
-	 * @returns {Object}
+	 * Deep clone an object or array using JSON.stringify
+	 * @param {Object|Array} obj 
+	 * @returns {Object|Array}
 	 */
-	_clone(obj) {
+	_deepClone(obj) {
 		return JSON.parse(JSON.stringify(obj));
 	}
 
