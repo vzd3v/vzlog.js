@@ -48,6 +48,7 @@
 		this._browser_data_is_submitted_key='vzl_static_submitted';
 
 		this._scroll_breakpoints_status={};
+		this._scroll_pause=false; 
 
 		this._listener_click=null;
 		this._listener_scroll=null;
@@ -210,6 +211,15 @@
 	 * @param {VZlog} _this
 	 */
 	_trackVerticalScroll(_this) {
+
+		// Optimization
+		if(_this._scroll_pause) { return; }
+		_this._scroll_pause=true;
+		console.log('run');
+		setTimeout(function() {
+			_this._scroll_pause=false;
+		},300);
+
 		var cur_scroll = _this._getVerticalScrollPercent();
 
 		// if document height is too small, remove event listener
