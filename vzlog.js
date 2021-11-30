@@ -12,7 +12,7 @@ class VZlog {
 	 * 
 	 * Set up
 	 * @param {string} api_url URL to API where JSON will be sent via POST 
-	 * @param {string|Array|Object} track_events which events to track. 
+	 * @param {string|Array|Object} [track_events] which events to track. 
 	 * 		Examples: 
 	 * 			'click' 											 or 
 	 * 			['click','scroll'] 									 or 
@@ -28,9 +28,10 @@ class VZlog {
 
 		// Unfortunately, class fields are not widely supported yet.
 		// default settings
+		this.track_events = ['browser','click','scroll'];
 		this.collect_user_agent = false;
 		this.send_browser_data_every_event=false;
-		this.click_filters='a'; 
+		this.click_filters='only_outbound_links'; 
 		this.scroll_log_if_doc_is_larger_than_window = 150; // % of viewport
 		this.scroll_breakpoints = [60, 90]; // % of page height
 
@@ -45,25 +46,37 @@ class VZlog {
 		this._listener_click=null;
 		this._listener_scroll=null;
 
-		//constructor method start
+		// where the logic starts
 
 		var _this = this;
+		track_events = this.track_events = track_events ? track_events : this.track_events;
 
-		if(!localStorage.getItem(this._browser_data_is_submitted_key)) { this._collectBrowserData(true); }
+		// parse parameters
 
-		if (!track_events || track_events == 'click' || (Array.isArray(track_events)&&track_events.indexOf('click') > -1) || (this._isObject(track_events) && 'click' in track_events)) {
-			if(this._isObject(track_events)&&track_events.click) {
-				_this.click_filters=track_events.click;
-			}
-			this._listener_click=function (e) { _this._trackClick(e, _this); };
-			window.addEventListener('mouseup', this._listener_click);
+		if 	(track_events == 'click' || 
+			(Array.isArray(track_events)&&track_events.indexOf('click') > -1) || 
+			(this._isObject(track_events) && 'click' in track_events)) {
+				if(this._isObject(track_events)&&track_events.click&&(Array.isArray(track_events.scroll) || typeof track_events.click==='string')) {
+					_this.click_filters=track_events.click;
+				}
+				this._listener_click=function (e) { _this._trackClick(e, _this); };
+				window.addEventListener('mouseup', this._listener_click);
 		}
-		if (!track_events || track_events == 'scroll' || (Array.isArray(track_events)&&track_events.indexOf('scroll') > -1) || (this._isObject(track_events) && 'scroll' in track_events)) {
-			if(this._isObject(track_events)&&track_events.scroll) {
-				_this.scroll_breakpoints=track_events.scroll;
-			}
-			this._listener_scroll=function () { _this._trackVerticalScroll(_this); };
-			document.addEventListener('scroll', this._listener_scroll, {'passive':true});
+
+		if 	(track_events == 'scroll' || 
+			(Array.isArray(track_events)&&track_events.indexOf('scroll') > -1) || 
+			(this._isObject(track_events) && 'scroll' in track_events)) {
+				if(this._isObject(track_events)&&Array.isArray(track_events.scroll)) {
+					_this.scroll_breakpoints=track_events.scroll;
+				}
+				this._listener_scroll=function () { _this._trackVerticalScroll(_this); };
+				document.addEventListener('scroll', this._listener_scroll, {'passive':true});
+		} 
+
+		if 	(track_events == 'browser' || 
+			(Array.isArray(track_events)&&track_events.indexOf('browser') > -1) || 
+			(this._isObject(track_events) && 'browser' in track_events)) {
+				if(!localStorage.getItem(this._browser_data_is_submitted_key)) { this._collectBrowserData(true); }
 		} 
 	}
 
