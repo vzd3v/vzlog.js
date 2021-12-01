@@ -105,7 +105,9 @@ var _VZLog=new VZlog('/path/to/your/api',{'scroll':{'breakpoints':[50,90],'iflar
 
 
 
-### Notes ###
+### Compatibility notes ###
 
 
-This implementation doesn't support old browsers (e.g. IE) due to the use of ES6.
+This implementation doesn't support old browsers (e.g. IE) due to the use of ES6. 
+
+Latter I'll compile the minified version with ES5 support. Until then you can try to use Babel.
