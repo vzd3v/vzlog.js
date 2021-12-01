@@ -2,7 +2,7 @@
 
 ❗ CURRENTLY IS IN ACTIVE DEVELOPMENT ❗
 
-## Main features ##
+### Main features ###
 * VZLog can track user actions on your website (click, scrolling, user activity time on the page etc) and dispatches them to any API;
 * VZLog is amazingly small and fast (using beaconAPI, passive:true and other optimizations);
 * Set-up can be made by 1 line of code;
@@ -21,10 +21,10 @@
 	* VZLog also supports custom events triggered in your code by `VZlog.event('event_name',any_params)`
 * Uses non-blocking beackonAPI if available
 
+## How to use ##
+
 ### Installation ###
 Just download vzlog.js and include it on your pages using `<script src="/path/to/vzlog.js"></script>`.
-
-## How to use ##
 
 ### Usage: general set-up ###
 
