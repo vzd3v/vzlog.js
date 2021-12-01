@@ -1,6 +1,8 @@
 ## VZlog: ⚡ Light dependency-free user behaivor tracker for web ##
+
 ❗ CURRENTLY IS IN ACTIVE DEVELOPMENT ❗
 
+## Main features ##
 * VZLog can track user actions on your website (click, scrolling, user activity time on the page etc) and dispatches them to any API;
 * VZLog is amazingly small and fast (using beaconAPI, passive:true and other optimizations);
 * Set-up can be made by 1 line of code;
@@ -64,7 +66,8 @@ var _VZLog=new VZlog('/path/to/your/api',{'click':true,'scroll':true}); // track
 var _VZLog=new VZlog('/path/to/your/api',['click','scroll']);
 ```
 
-Click tracking settings:
+### Usage – click tracking settings ###
+
 ```javascript
 //By default, it tracks clicks only on outbound links and it's child elements
 var _VZLog=new VZlog('/path/to/your/api','click'); 
@@ -86,7 +89,8 @@ var _VZLog=new VZlog('/path/to/your/api',{'click':['on':['only_outbound_links','
 // But if if span.someclass is placed inside <a> with inbound link (href), it won't be tracked!
 ```
 
-Scroll tracking settings:
+### Usage – scroll tracking settings ###
+
 ```javascript
 //By default, it tracks scroll only on breakpouints 50% and 90% and only if page height is 1.5x larger than the viewport:
 var _VZLog=new VZlog('/path/to/your/api','scroll'); 
