@@ -2,9 +2,12 @@
  * 
  * A simple dependency-free tracker of user behavior for web. 
  * This implementation doesn't support old browsers (e.g. IE) due to the use of ES6.
- * GitHub and documentation: {@link https://github.com/vzd3v/vzlog.js | GitHub}. 
+ * Documentation: {@link https://github.com/vzd3v/vzlog.js | GitHub}. 
  * @author Vasily Zakharov <vz@vz.team>
  * 
+ * @todo Activity: save current activity data in browser (LS/IDB) and send next time if it hasn't been sent before. This feature is especially needen on mobile devices due to connection unstability and visibilitychange/pagehide events specifics.
+ * @todo General: add an option to send all the collected data not in real-time but on visibilitychange, not only for 'activity'
+ * @todo Scroll: add an option to track scroll path length instead of % of page from zero 
  */
  class VZlog {
 
@@ -18,13 +21,16 @@
 	 * 			['click','scroll'] 									 or 
 	 * 			{'click':'a,button.class','scroll':true} 			 or 
 	 * 			{'click':{'on':['a','button.class']},'scroll':{'breakpoints':[50,80]}} 
-	 * See more on {@link https://github.com/vzd3v/vzlog.js | GitHub}. 
+	 * See more on GitHub
 	 * 
 	 */
 	constructor(api_url, options) {
 
 		if (!api_url) { return; }
 		this._api_url = api_url;
+
+
+		// Documentation is on GitHub
 
 		this.default_options={
 			'browser': {
@@ -37,51 +43,88 @@
 			'scroll': {
 				'iflargerthan': 150,
 				'breakpoints': [50,90]
+			},
+			'activity': {
+				'on':['pointerdown','scroll','keydown','focus'],
+				'inactivity_period': 30,
 			}
 		};
 
-		//private properties
+		// Private properties
+
 		this._debug=false;
+		this._debug_scroll=false;
+		this._debug_activity=false;
+
 		this._browser_data = null;
 		this._last_event = null;
 
 		this._browser_data_is_submitted_key='vzl_static_submitted';
 
 		this._scroll_breakpoints_status={};
-		this._scroll_pause=false; 
+		this._scroll_ticker=false; 
+		this._scroll_start_pos=null;
+
+		this._activity_ticker=false;
+		this._activity={'cur':{},'total':0,'last_transaction':0};
 
 		this._listener_click=null;
 		this._listener_scroll=null;
+		this._listener_activity=null;
+		this._listener_activity_visibility_stopper=null;
+		this._listener_activity_stopper=null;
 
-		// where the logic starts
+		// Parsing options
 
-		var _this = this;
+		this.options={};
 
-		this.options=this._deepClone(this.default_options);
-
-		if(options && this._isObject(options)) {
-			for(let k in options) {
-				if(this._isObject(options[k])) {
-					Object.assign(this.options[k],options[k]);
+		if(options) {
+			// case (Object) {...}
+			if(this._isObject(options))
+			{
+				for(let k in options) {
+					// case {a:{p:...,p:...}, b:{p:...,p:...}}
+					if(this._isObject(options[k])) {
+						this.options[k]=Object.assign(this._deepClone(this.default_options[k]),options[k]);
+					} else {
+					// case {a:true,b:true}
+						this.options[k]=this._deepClone(this.default_options[k]);
+					}
 				}
 			}
+			// case (Array) [a,b]
+			if(Array.isArray(options)) {
+				for (let k of options) {
+					this.options[k]=this._deepClone(this.default_options[k]);
+				}
+			}
+			// case (string) 'a'
+			if(typeof(options)==='string') {
+				this.options[options]=this._deepClone(this.default_options[options]);
+			}
+		} else {
+			this.options=this._deepClone(this.default_options);
 		}
 
-		// parsing options
+		options=this.options;
+		if(this._debug) { console.log(this.options); }
+
+		// Bind event listeners
 
 		if 	(options == 'click' 
 			|| (Array.isArray(options)&&options.indexOf('click') > -1) 
 			|| (this._isObject(options) && 'click' in options)) {
 
-				this._listener_click=function (e) { _this._trackClick(e, _this); };
-				window.addEventListener('mouseup', this._listener_click);
+				this._listener_click=this._trackClick.bind(this);
+				window.addEventListener('pointerup', this._listener_click);
 		}
 
 		if 	(options == 'scroll' 
 			|| (Array.isArray(options)&&options.indexOf('scroll') > -1) 
 			|| (this._isObject(options) && 'scroll' in options)) {
 
-				this._listener_scroll=function () { _this._trackVerticalScroll(_this); };
+				this._scroll_start_pos=this._getVerticalScrollPercent();
+				this._listener_scroll=this._trackVerticalScroll.bind(this);
 				document.addEventListener('scroll', this._listener_scroll, {'passive':true});
 		} 
 
@@ -94,10 +137,34 @@
 					localStorage.setItem(this._browser_data_is_submitted_key,'1');
 				}
 		} 
+
+		if 	(options == 'activity' 
+			|| (Array.isArray(options)&&options.indexOf('activity') > -1) 
+			|| (this._isObject(options) && 'activity' in options)) {
+
+				this._listener_activity=this._trackUserActivity.bind(this);
+
+				for (let event of this.options.activity.on) {
+					event=event.replace('mouse','pointer');
+					document.addEventListener(event, this._listener_activity, {'passive':true});
+				}
+
+				this._listener_activity_visibility_stopper=function() {
+					if (document.visibilityState === 'hidden') {
+						this._activityStatus(false);
+					}
+				}.bind(this);
+				document.addEventListener('visibilitychange',this._listener_activity_visibility_stopper);
+
+				this._listener_activity_stopper=this._activityStatus.bind(this,false);
+				document.addEventListener('pagehide',this._listener_activity_stopper);
+
+				this._activityStatus(true);
+		}
 	}
 
 	/**
-	 * Collect data independent of user actions on the page. Usually is sent once. 
+	 * Collects data that doesn't depend on the actions of user on the page.
 	 * @param {boolean} send_event if true, send event '_browser_data' with collected data
 	 * @returns {Object} collected data
 	 */
@@ -137,10 +204,6 @@
 		return data;
 	}
 
-	_preserveFilterFor_trackClick(filter) {
-
-	}
-
 	/**
 	 * Tracking clicks. Should be used as listener on mouseup.
 	 * If this.options.click.on is set, track clicks only on elements (or ANY of its parents) that match a css-selector. 
@@ -148,16 +211,18 @@
 	 * 				Or Array: ['a','button.class','button[type=submit]', '.class'] 
 	 * If options.click.on=='only_outbound_links', track ONLY clicks on outbound links. 
 	 * If options.click.on is Array and has 'only_outbound_links' value, then links (a tag) will be tracked only if outbound.
+	 * 
+	 * Don't forget to use with bind(this) if context is changed (e.g. in event listeners)
+	 * 
 	 * @param {PointerEvent|MouseEvent} e 
-	 * @param {VZlog} _this 
 	 */
-	_trackClick(e, _this) {
+	_trackClick(e) {
 		var ev_btn=e.button; // 0=main(left), 1=middle(mouse wheel), 2=secondary(right) https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
 		if([0,1].indexOf(ev_btn)==-1) { return; } // track only main and new tab (wheel)
 		
 		var el = e.target;
 
-		var filter=_this.options.click.on;
+		var filter=this.options.click.on;
 
 		var only_outbound_links=false;
 		if(filter==='only_outbound_links') { only_outbound_links=true; filter='a'; }
@@ -192,8 +257,8 @@
 		} 
 
 		params.el = {
-			'el': _this.getPrettyElementName(el),
-			'path': _this.getPrettyPathToElement(el),
+			'el': this.getPrettyElementName(el),
+			'path': this.getPrettyPathToElement(el),
 			'tagName': el_tag,
 		};
 		if(el.className.trim()) { params.el.className=el.className.trim(); }
@@ -203,54 +268,126 @@
 			'button': ev_btn, // 0=main(left), 1=middle(mouse wheel), 2=secondary(right) https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
 		};
 
-		_this.event('click', params);
+		this.event('click', params);
+	}
+
+	_activityAutoEnd_daemon() {
+		this.activity_setInterval_id = setInterval(function(){
+			if(this._activityStatus() && this._activity.cur.auto_end_at<Date.now()) {
+				this._activityStatus(false);
+			}
+		}.bind(this),500);
+	}
+
+	/** 
+	 * Get or set current user activity status.
+	 * @param {boolean} [status] if set, true = user is active, false = isn't. 
+	 * 		If false, sends event with last activity period.
+	 */
+	_activityStatus(status) {
+		if(status!==false&&status!==true) {
+			return this._activity_is_active_now;
+		}
+
+		var cur_time=Date.now();
+
+		if(this._debug_activity) { console.log(cur_time,this._activity_is_active_now,this._activity); }
+
+		if(status===false) {
+			// if before was active, send event to server
+			if(this._activity_is_active_now && this._activity.cur.start_time) {
+
+				this._activity.last_transaction = cur_time - this._activity.cur.start_time;
+				this._activity.total += this._activity.last_transaction;
+
+				let params = {
+					'increment': this._activity.last_transaction,
+					'total': this._activity.total
+				};
+
+				this.event('activity',params);
+
+				this._activity.cur.start_time=0;
+				this._activity.cur.auto_end_at=0;
+			}
+			return this._activity_is_active_now=false;
+		}
+		if(status===true) {
+
+			// if before was unactive, set start time as now
+			if(!this._activity_is_active_now || !this._activity.cur.start_time) {
+				this._activity.cur.start_time=cur_time;
+			}
+
+			// prolong auto end time
+			var inact_period=this.options.activity.inactivity_period*1000;
+			this._activity.cur.auto_end_at=cur_time+inact_period;
+
+			// start auto end daemon if it's not yet
+			if(!this.activity_setInterval_id) {
+				this._activityAutoEnd_daemon();
+			}
+
+			return this._activity_is_active_now=true;
+		}
+	}
+
+	_trackUserActivity() {
+		// Optimization.
+		if(this._activity_ticker) { return; }
+		this._activity_ticker=true;
+		setTimeout(function() {
+			this._activity_ticker=false;
+		}.bind(this),500);
+
+		this._activityStatus(true);
 	}
 
 	/**
-	 * Tracking vertical scrolling. Send events when it reaches this.options.scroll.breakpoints
-	 * @param {VZlog} _this
+	 * Tracking vertical scrolling. Sends events when it reaches this.options.scroll.breakpoints
 	 */
-	_trackVerticalScroll(_this) {
+	_trackVerticalScroll() {
 
-		// Optimization
-		if(_this._scroll_pause) { return; }
-		_this._scroll_pause=true;
-		console.log('run');
+		// Optimization.
+		if(this._scroll_ticker) { return; }
+		this._scroll_ticker=true;
 		setTimeout(function() {
-			_this._scroll_pause=false;
-		},300);
+			this._scroll_ticker=false;
+		}.bind(this),200);
 
-		var cur_scroll = _this._getVerticalScrollPercent();
+		var cur_scroll = this._getVerticalScrollPercent();
 
 		// if document height is too small, remove event listener
 		if(!cur_scroll) {
-			document.removeEventListener('scroll',_this._listener_scroll); 
+			document.removeEventListener('scroll',this._listener_scroll); 
 			return; 
 		}
 
-		var bp_status=_this._scroll_breakpoints_status;
+		var bp_status=this._scroll_breakpoints_status;
 		
-		var scroll_breakpoints=_this.options.scroll.breakpoints;
+		var scroll_breakpoints=this.options.scroll.breakpoints;
 
 		var bp_to_send=[];
 
 		for(let bp of scroll_breakpoints) {
 			let bp_is_sent=((bp in bp_status)&&bp_status[bp]) ? true : false;
-			if(!bp_is_sent && cur_scroll>bp) {
+			if(!bp_is_sent && cur_scroll>bp) { // Measure from the start of the page. Not relevant if user hasn't been started from the zero position, e.g. came through #hash to the middle of the article!
 				bp_to_send.push(bp);
-				_this._scroll_breakpoints_status[bp]=bp_status[bp]=true;
+				this._scroll_breakpoints_status[bp]=bp_status[bp]=true;
 			}
 		}
 		if(bp_to_send.length>0) {
-			_this.event('scroll',{'breakpoints':bp_to_send});
+			this.event('scroll',{'breakpoints':bp_to_send});
 		}
 	}
 
 	/**
-	 * Get unique path to element (starting with body or nearest first parent with id)
+	 * Get unique path to element (starting with body or closest first parent with id)
 	 * @param {Element} el 
 	 * @param {boolean} return_array 
-	 * @returns {string} smth like body>div.class1.class2>p:nth-of-type(1) or div#id>p.class:nth-of-type(2)
+	 * @returns {string} smth like 
+	 * 								 body>div.class1.class2>p:nth-of-type(1) 
+	 * 						or 		 div#id>p.class:nth-of-type(2)
 	 */
 	getPrettyPathToElement(el, return_array = false) {
 		var arr = [];
@@ -308,6 +445,8 @@
 		if (!ev) { return; }
 		var obj_to_send = {};
 
+		if(this._debug) { console.log('event',ev,params); }
+
 		if (this._isObject(ev)) {
 			let ev1 = this._deepClone(ev); // we don't want to affect original ev
 			if (!Object.prototype.hasOwnProperty.call(ev1, 'event')) { return; }
@@ -353,7 +492,7 @@
 			document.body.clientHeight || 0, 
 			document.documentElement.clientHeight || 0);
 
-		if(this._debug) { console.log({scroll_position,window_height,document_height}); }
+		if(this._debug_scroll) { console.log({scroll_position,window_height,document_height}); }
 
 		// eliminate the possibility of division by zero
 		if(!document_height||!window_height) { return; } 
@@ -362,7 +501,7 @@
 		if(document_height/window_height*100<this.options.scroll.iflargerthan) { return; } 
 
 		var scroll_percent=(scroll_position + window_height) / document_height * 100;
-		if(this._debug) { console.log({scroll_percent}); }
+		if(this._debug_scroll) { console.log({scroll_percent}); }
 		
 		return scroll_percent;
 	}
