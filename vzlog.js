@@ -5,7 +5,7 @@
  * Documentation: {@link https://github.com/vzd3v/vzlog.js | GitHub}. 
  * @author Vasily Zakharov <vz@vz.team>
  * 
- * @todo Activity: save current activity data in browser (LS/IDB) and send next time if it hasn't been sent before. This feature is especially needen on mobile devices due to connection unstability and visibilitychange/pagehide events specifics.
+ * @todo Activity: save current activity data in browser (LS/IDB) and send next time if it hasn't been sent before. This feature is especially needed on mobile devices due to connection unstability and visibilitychange/pagehide events specifics.
  * @todo General: add an option to send all the collected data not in real-time but on visibilitychange, not only for 'activity'
  * @todo Scroll: add an option to track scroll path length instead of % of page from zero 
  */
@@ -74,6 +74,11 @@
 		this._listener_activity_visibility_stopper=null;
 		this._listener_activity_stopper=null;
 
+		this._onLocationChange_watch_el=null;
+		this._onLocationChange_observer=null;
+		this._onLocationChange_prev_url=null;
+		this._onLocationChange_funcs=[];
+
 		// Parsing options
 
 		this.options={};
@@ -115,7 +120,7 @@
 			|| (Array.isArray(options)&&options.indexOf('click') > -1) 
 			|| (this._isObject(options) && 'click' in options)) {
 
-				this._listener_click=this._trackClick.bind(this);
+				this._listener_click=this._listenerClick.bind(this);
 				window.addEventListener('pointerup', this._listener_click);
 		}
 
@@ -124,8 +129,14 @@
 			|| (this._isObject(options) && 'scroll' in options)) {
 
 				this._scroll_start_pos=this._getVerticalScrollPercent();
-				this._listener_scroll=this._trackVerticalScroll.bind(this);
+				this._listener_scroll=this._listenerVerticalScroll.bind(this);
 				document.addEventListener('scroll', this._listener_scroll, {'passive':true});
+
+				// Reset and send events for breakpoints again if location is changed.
+
+				this._onLocationChange(function() { 
+					this._scroll_breakpoints_status={};
+				});
 		} 
 
 		if 	(options == 'browser' 
@@ -142,9 +153,9 @@
 			|| (Array.isArray(options)&&options.indexOf('activity') > -1) 
 			|| (this._isObject(options) && 'activity' in options)) {
 
-				this._listener_activity=this._trackUserActivity.bind(this);
+				this._listener_activity=this._listenerUserActivity.bind(this);
 
-				for (let event of this.options.activity.on) {
+				for (var event of this.options.activity.on) {
 					event=event.replace('mouse','pointer');
 					document.addEventListener(event, this._listener_activity, {'passive':true});
 				}
@@ -205,6 +216,42 @@
 	}
 
 	/**
+	 * Custom event-like function for monitoring current address (location.href) change
+	 * By default it watches <title> tag and, if it changes, checks location.href.
+	 */ 
+
+	_onLocationChange(func)
+	{
+		if(!this._onLocationChange_observer) {
+
+			this._onLocationChange_prev_url = document.location.href;
+			var mon_selector=this._onLocationChange_watch_el || 'head title';
+
+			var target=document.querySelector(mon_selector);
+
+			this._onLocationChange_observer = new MutationObserver(function() {
+				if (this._onLocationChange_prev_url !== document.location.href) {
+					this._onLocationChange_prev_url = document.location.href;
+					if(this._debug) { console.log(document.location.href); }
+					for(let func of this._onLocationChange_funcs) {
+						func();
+					}
+				}
+			}.bind(this));
+
+			var obs_conf = {
+				characterData:true,
+				childList: true,
+				attributes: true
+			};
+
+			this._onLocationChange_observer.observe(target, obs_conf);
+		}
+
+		this._onLocationChange_funcs.push(func.bind(this));
+	}
+
+	/**
 	 * Tracking clicks. Should be used as listener on mouseup.
 	 * If this.options.click.on is set, track clicks only on elements (or ANY of its parents) that match a css-selector. 
 	 * Example: 	'a,button.class,button[type="submit"],.class'. 
@@ -216,7 +263,7 @@
 	 * 
 	 * @param {PointerEvent|MouseEvent} e 
 	 */
-	_trackClick(e) {
+	_listenerClick(e) {
 		var ev_btn=e.button; // 0=main(left), 1=middle(mouse wheel), 2=secondary(right) https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
 		if([0,1].indexOf(ev_btn)==-1) { return; } // track only main and new tab (wheel)
 		
@@ -291,7 +338,7 @@
 
 		var cur_time=Date.now();
 
-		if(this._debug_activity) { console.log(cur_time,this._activity_is_active_now,this._activity); }
+		if(this._debug_activity) { console.log('%cActivity','background-color:orange;',cur_time,this._activity_is_active_now,this._activity); }
 
 		if(status===false) {
 			// if before was active, send event to server
@@ -332,7 +379,10 @@
 		}
 	}
 
-	_trackUserActivity() {
+	/**
+	 * Tracks User Activity Time.
+	 */
+	_listenerUserActivity() {
 		// Optimization.
 		if(this._activity_ticker) { return; }
 		this._activity_ticker=true;
@@ -346,7 +396,7 @@
 	/**
 	 * Tracking vertical scrolling. Sends events when it reaches this.options.scroll.breakpoints
 	 */
-	_trackVerticalScroll() {
+	_listenerVerticalScroll() {
 
 		// Optimization.
 		if(this._scroll_ticker) { return; }
@@ -445,7 +495,7 @@
 		if (!ev) { return; }
 		var obj_to_send = {};
 
-		if(this._debug) { console.log('event',ev,params); }
+		if(this._debug) { console.log('%cEVENT '+ev,'font-size:150%; background-color:yellow; font-weight:bold;',params); }
 
 		if (this._isObject(ev)) {
 			let ev1 = this._deepClone(ev); // we don't want to affect original ev

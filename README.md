@@ -1,30 +1,38 @@
-## VZlog: ⚡ Light dependency-free user behaivor tracker for web ##
+## VZlog: ⚡ Fast dependency-free user behaivor tracker for Web ##
 
-❗ CURRENTLY IS IN ACTIVE DEVELOPMENT ❗
+### Why? ###
+* VZLog tracks user activity on your website and dispatches it to any API on YOUR server;
+* Currently it supports tracking of:
+	* User activity time (you choose what to count as an activity);
+	* Vertical scrolling;
+	* Clicks (you choose clicks to which elements are counted, e.g. outbound links or buttons);
+	* Browser data;
+* Set-up by 1 line of code;
+* Amazingly small (10kb minified) and fast (using beaconAPI, passive:true and other optimizations);
+* It supports browsers released after 2016 (ES6) and works with any frameworks as well as without them. *(Later: ES5/IE11 version)*
 
-### Main features ###
-* VZLog can track user activity on your website and dispatch them to any API;
-* VZLog is amazingly small and fast (using beaconAPI, passive:true and other optimizations);
-* Set-up can be made by 1 line of code;
-* It supports modern SPA-frameworks like React/Vue;
-* Current features:
-	* track browser data: timezone, language, screen resolution etc;
-	* track user activity time:
-		* you can track how much time user actually spent on the page doing something
-		* you can set actions (events) that will be considered an activity
-	* track clicks: 
-		* you can track any elements that matches the specified CSS-selectors (e.g. `a, div.class, button[type=submit]`);
-		* you can track outbound links (including non-http, e.g. tg://);
-		* if click is done by middle mouse button, it also tracks it;
-		* your API receives href even if target element doesn't have href but was inside `a`;
-		* your API receives unique DOM path of matches element, e.g. `div#content>ul.navbar>li:nth-of-type(3)>a`
-	* track scroll: 
-		* track when user reaches some breakpoints (e.g. 50%, 90%) if page is big enough (e.g. >150% of viewport)
-		* scroll events are sent once per each breakpoint per pageview. If your app is SPA, scroll tracking is reset if location is changed (not taking into account #hash), or you can manually tell VZlog that page was refreshed: `VZlog.newpage()`;
-	* VZLog also supports custom events triggered in your code by `VZlog.event('event_name',any_params)`
-* Uses non-blocking beackonAPI if available
+### Current features ###
+* Track **browser data**: timezone, language, screen resolution etc;
+* Track **user activity time**:
+	* track how much time user actually spent on the page doing something
+	* you can set actions (events) that will be considered an activity
+* Track **clicks**: 
+	* track any elements that matches the specified CSS-selectors (e.g. `a, div.class, button[type=submit]`);
+	* track clicks to outbound links (including non-http, e.g. tg://);
+	* if you want to track clicks to links, it's ok to have any child elements in `<a>` (e.g. `<a><img></a>`), it still will be tracked;
+	* if click was made with the middle mouse button, it still will be tracked;
+	* your API receives unique DOM path of target element, e.g. `div#content>ul.navbar>li:nth-of-type(3)>a`, so you will know exactly what is happened
+* Track **scroll**: 
+	* track when user reaches some breakpoints (e.g. 50%, 90%) if page is big enough (e.g. >150% of viewport)
+	* scroll events are sent once per each breakpoint per pageview. If your app is SPA, it's ok! Scroll tracking will be reset if `<title>`+location.href is changed (not taking into account #hash);
+* You can track any **custom events** triggered in your code by `VZlog.event('event_name',any_params)`
 
-## How to use ##
+### Technical details ###
+* Uses non-blocking BeaconAPI to send events if available (if not, uses XMLHttpRequest);
+* Uses passive:true and other optimizations for event listeners, so tracking scrolling & user activity is not a bottleneck;
+* Currently VZlog is written using basic ES6 features, so **it doesn't support IE11**! But you can compile it with Babel to ES5;
+
+# How to use #
 
 ### Installation ###
 Just download vzlog.js and include it on your pages using `<script src="/path/to/vzlog.js"></script>`.
@@ -35,7 +43,7 @@ Activate VZlog and set a path to your API that can collect JSON.
 ```javascript
 var _VZLog=new VZlog('/path/to/your/api');
 ```
-That's all!
+In fact, that's enough!
 
 With default settings, it tracks:
 * user activity time;
@@ -70,7 +78,7 @@ var _VZLog=new VZlog('/path/to/your/api',{'click':true,'scroll':true}); // track
 var _VZLog=new VZlog('/path/to/your/api',['click','scroll']);
 ```
 
-### Usage – click tracking settings ###
+### Advanced: click tracking settings ###
 
 ```javascript
 //By default, it tracks clicks only on outbound links and it's child elements
@@ -93,7 +101,7 @@ var _VZLog=new VZlog('/path/to/your/api',{'click':['on':['only_outbound_links','
 // But if if span.someclass is placed inside <a> with inbound link (href), it won't be tracked!
 ```
 
-### Usage – scroll tracking settings ###
+### Advanced: scroll tracking settings ###
 
 ```javascript
 //By default, it tracks scroll only on breakpouints 50% and 90% and only if page height is at least 1.5x larger than viewport:
@@ -109,7 +117,7 @@ var _VZLog=new VZlog('/path/to/your/api',{'scroll':{'iflargerthan':300}});
 
 ```
 
-### Usage – user activity time tracking ###
+### Advanced: user activity time tracking ###
 
 ```javascript
 //By default, the following events are considered as activity: clicks, scrolling, pressing any key on keybord, focus the document. Activity is considered suspended after 30 seconds of inactivity, or if user has left pr closed the browser tab, or minimized or closed the browser.
@@ -125,12 +133,8 @@ var _VZLog=new VZlog('/path/to/your/api',{'scroll':{'iflargerthan':300}});
 
 ```
 
+## What will your server receive? — TBD
 
+(you will receive JSON)
 
-
-### Compatibility notes ###
-
-
-This implementation doesn't support old browsers (e.g. IE) due to the use of ES6. 
-
-Latter I'll compile the minified version with ES5 support. Until then you can try to use Babel.
+(Until this block is completed, you can check what is sending in the browser console or by smth like var_dump)
