@@ -15,7 +15,7 @@
 * Track **browser data**: timezone, language, screen resolution etc;
 * Track **user activity time**:
 	* track how much time user actually spent on the page doing something
-	* you can set actions (events) that will be considered an activity
+	* you can set events to be treated as activity
 * Track **clicks**: 
 	* track any elements that matches the specified CSS-selectors (e.g. `a, div.class, button[type=submit]`);
 	* track clicks to outbound links (including non-http, e.g. tg://);
