@@ -7,6 +7,7 @@
 	* Vertical scrolling;
 	* Clicks (you choose clicks to which elements are counted, e.g. outbound links or buttons);
 	* Browser data;
+	* Your custom events
 * Set-up by 1 line of code;
 * Amazingly small (10kb minified) and fast (using beaconAPI, passive:true and other optimizations);
 * It supports browsers released after 2016 (ES6) and works with any frameworks as well as without them. *(Later: ES5/IE11 version)*
