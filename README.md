@@ -1,4 +1,4 @@
-## VZlog: ⚡ Fast dependency-free user behaivor tracker for Web ##
+## VZlog:  fast dependency-free user behaivor tracker for Web ##
 
 ### Why? ###
 * VZLog tracks user activity on your website and dispatches it to any API on YOUR server;
@@ -35,7 +35,7 @@
 # How to use #
 
 ### Installation ###
-Just download vzlog.js and include it on your pages using `<script src="/path/to/vzlog.js"></script>`.
+Just download `vzlog.js` and include it on your pages using `<script src="/path/to/vzlog.js"></script>`.
 
 ### Usage: general set-up ###
 
@@ -51,26 +51,35 @@ With default settings, it tracks:
 * clicks to outbound links (and it's child elements);
 * scrolling to breakpoints 50% and 90% of document if page is 1.5x larger than viewport (sends event for each breakpoint only once per page view)
 
-If you want to specify some settings, that's how to:
+If you want to specify some settings, that's how to.
+The default settings are an equivalent to:
 ```javascript
-// You can use the defaults:
-var _VZLog=new VZlog('/path/to/your/api');
-// It's an equivalent to default settings:
 var _VZLog=new VZlog('/path/to/your/api',['activity','browser','click','scroll']);
-
-// If you want to change defaults:
+``` 
+If you want to change defaults:
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',options);
-// where options can be null, string, Array or Object.
+``` 
+`options` can be null, string, Array or Object.
 
-// Use options as a string if you want to turn on only one feautute with default parameters:
-var _VZLog=new VZlog('/path/to/your/api','browser'); // track only browser data (with default parameters)
-var _VZLog=new VZlog('/path/to/your/api','click'); // track only clicks (with default parameters)
-var _VZLog=new VZlog('/path/to/your/api','scroll'); // track only scroll (with default parameters)
+Use options as a `string` if you want to turn on only one feature with default parameters:
+```javascript
+// Track only browser data (with default parameters):
+var _VZLog=new VZlog('/path/to/your/api','browser'); 
+// Track only clicks (with default parameters):
+var _VZLog=new VZlog('/path/to/your/api','click'); 
+// Track only scroll (with default parameters):
+var _VZLog=new VZlog('/path/to/your/api','scroll'); 
+// etc.
+``` 
+Use options as an `Array`, if you want to turn on specified features with default parameters:
+```javascript
+// Track clicks & scroll (with default parameters):
+var _VZLog=new VZlog('/path/to/your/api',['click','scroll']); 
 
-// Use options as an array, if you want to turn on specified features with default parameters:
-var _VZLog=new VZlog('/path/to/your/api',['click','scroll']); // track clicks & scroll (with default parameters).
-
-// If options is an object, you can specify parameters of each feature. 
+``` 
+If options is an `Object`, you can specify parameters of each feature. 
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',{'click':params,'scroll':params});
 // To use default parameters, set params to true:
 var _VZLog=new VZlog('/path/to/your/api',{'click':true,'scroll':true}); // track clicks & scroll (with default parameters)
@@ -83,64 +92,81 @@ var _VZLog=new VZlog('/path/to/your/api',['click','scroll']);
 ```javascript
 //By default, it tracks clicks only on outbound links and it's child elements
 var _VZLog=new VZlog('/path/to/your/api',['click']); 
-// It's an equivalent to default settings:
+``` 
+It's an equivalent to default settings:
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',{'click':'only_outbound_links'}); 
 
-// Track clicks on the specified CSS-selectors (and it's children):
+``` 
+To track clicks on the specified CSS-selectors (and it's children):
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',{'click':{'on':'a,button.class,button[type=submit]'}}); 
 // Or you can specify selectors via Array, it's the same:
 var _VZLog=new VZlog('/path/to/your/api',{'click':{'on':['a','button.class','button[type=submit]']}}); 
-
-// Special param: track click ONLY on outbound links (and it's children):
-var _VZLog=new VZlog('/path/to/your/api',{'click':['on':'only_outbound_links']}); 
-
-// You can use 'only_outbound_links' in mix with other selectors, but they should be in array, not in one string:
-var _VZLog=new VZlog('/path/to/your/api',{'click':['on':['only_outbound_links','span.someclass']]}); 
-// Then the following logic will be observed: 
-// track clicks to outbound links AND track links to <span> with class 'someclass'.
-// But if if span.someclass is placed inside <a> with inbound link (href), it won't be tracked!
 ```
+Special parameter value `only_outbound_links`: track click ONLY on outbound links (and it's children):
+```javascript
+var _VZLog=new VZlog('/path/to/your/api',{'click':['on':'only_outbound_links']}); 
+```
+You can use `only_outbound_links` in the mix with the other selectors, but they should be set in Array, not in single string:
+```javascript
+var _VZLog=new VZlog('/path/to/your/api',{'click':['on':['only_outbound_links','span.someclass']]}); 
+```
+Then the following logic will be observed: 
+- track clicks to outbound links AND track links to `<span>` with class `.someclass`.
+- if `span.someclass` is placed inside `<a>` with inbound href, it won't be tracked!
+
 
 ### Advanced: scroll tracking settings ###
 
+By default, it tracks scroll only on breakpouints 50% and 90% and only if page height is at least 1.5x larger than viewport:
 ```javascript
-//By default, it tracks scroll only on breakpouints 50% and 90% and only if page height is at least 1.5x larger than viewport:
-var _VZLog=new VZlog('/path/to/your/api',['scroll']); 
-// It's an equivalent to default settings:
+var _VZLog=new VZlog('/path/to/your/api',['scroll']);
+``` 
+It's an equivalent to default settings:
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',{'scroll':{'breakpoints':[50,90],'iflargerthan':150}}); 
-
-// You can set any number of your custom breakpoints
+``` 
+You can set any number of your custom breakpoints:
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',{'scroll':{'breakpoints':[10,40,70,95]}});
-
-// Log scrolling if page height is at least 3x larger than viewport:
+``` 
+Log scrolling if page height is at least 3x larger than viewport:
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',{'scroll':{'iflargerthan':300}}); 
-
 ```
 
 ### Advanced: user activity time tracking ###
 
+By default, the following events are considered as activity: clicks, scrolling, pressing any key on the keyboard, focus. 
+
+By default, activity is considered suspended after 30 seconds of inactivity, or if user has switched/closed the browser tab, or minimized/closed the browser.
+
 ```javascript
-// By default, the following events are considered as activity: clicks, scrolling, pressing any key on the keyboard, focus. 
-// By default, activity is considered suspended after 30 seconds of inactivity, or if user has left pr closed the browser tab, or minimized or closed the browser.
 var _VZLog=new VZlog('/path/to/your/api',['activity']); 
-// It's an equivalent to default settings:
+``` 
+It's an equivalent to default settings:
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',{'activity':{'on':['pointerdown','scroll','keydown','focus'],'inactivity_period':30}}); 
-
-// You can set any other document events which will be considered as activity:
+``` 
+You can set any other browser events which will be considered as activity:
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',{'activity':{'on':['pointermove','pointerdown','pointermove','scroll']}}); 
-
-// You can set the time that elapses from the moment of the last user action before the activity stops being counted. 
-// Switching to another tab, minifying or closing the browser will interrupt the activity automatically.
+``` 
+You can set the time that elapses from the moment of the last user action before the activity stops being counted. 
+```javascript
 var _VZLog=new VZlog('/path/to/your/api',{'activity':{'inactivity_period':10}}); 
-
-// The event is sent to the server as soon as the activity stops. 
-// To prevent the loss of activity data in various scenarios of closing the browser, current realization (visibilitychange+BeaconAPI) covers >95% cases in modern desktop browsers and 90% in mobile browsers.
-// In the next versions I'll try to cover the remaining cases, such as a network disconnection or non-obvious behavior of specific browsers. 
-// I'm assuming that I'll temporarily save activity data in user's browser (using IndexedDB), so that the data about the activity is sent anyway, if for some reason it was not delivered in real time.
-
 ```
+Switching to another tab, minifying or closing the browser will interrupt the activity automatically.
 
-## What will your server receive? — TBD
+The event is sent to the server as soon as the activity stops. 
+
+To prevent the loss of activity data in various scenarios of closing the browser, current realization (visibilitychange+BeaconAPI) covers >95% cases in modern desktop browsers and 90% in mobile browsers.
+
+In the next versions I'll try to cover the remaining cases, such as a network disconnection or non-obvious behavior of specific browsers. I'm assuming to temporarily save activity data in user's browser (using IndexedDB), so that the data about the activity is sent anyway, if for some reason it was not delivered in real time.
+
+
+## TBD – what will your server receive? / API requirements
 
 (you will receive JSON)
 
