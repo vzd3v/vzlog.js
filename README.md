@@ -120,16 +120,23 @@ var _VZLog=new VZlog('/path/to/your/api',{'scroll':{'iflargerthan':300}});
 ### Advanced: user activity time tracking ###
 
 ```javascript
-//By default, the following events are considered as activity: clicks, scrolling, pressing any key on keybord, focus the document. Activity is considered suspended after 30 seconds of inactivity, or if user has left pr closed the browser tab, or minimized or closed the browser.
+// By default, the following events are considered as activity: clicks, scrolling, pressing any key on the keyboard, focus. 
+// By default, activity is considered suspended after 30 seconds of inactivity, or if user has left pr closed the browser tab, or minimized or closed the browser.
 var _VZLog=new VZlog('/path/to/your/api',['activity']); 
 // It's an equivalent to default settings:
 var _VZLog=new VZlog('/path/to/your/api',{'activity':{'on':['pointerdown','scroll','keydown','focus'],'inactivity_period':30}}); 
 
 // You can set any other document events which will be considered as activity:
-var _VZLog=new VZlog('/path/to/your/api',{'activity':{'on':['pointerdown'],'inactivity_period':30}}); 
+var _VZLog=new VZlog('/path/to/your/api',{'activity':{'on':['pointermove','pointerdown','pointermove','scroll']}}); 
 
-// Log scrolling if page height is at least 3x larger than viewport:
-var _VZLog=new VZlog('/path/to/your/api',{'scroll':{'iflargerthan':300}}); 
+// You can set the time that elapses from the moment of the last user action before the activity stops being counted. 
+// Switching to another tab, minifying or closing the browser will interrupt the activity automatically.
+var _VZLog=new VZlog('/path/to/your/api',{'activity':{'inactivity_period':10}}); 
+
+// The event is sent to the server as soon as the activity stops. 
+// To prevent the loss of activity data in various scenarios of closing the browser, current realization (visibilitychange+BeaconAPI) covers >95% cases in modern desktop browsers and 90% in mobile browsers.
+// In the next versions I'll try to cover the remaining cases, such as a network disconnection or non-obvious behavior of specific browsers. 
+// I'm assuming that I'll temporarily save activity data in user's browser (using IndexedDB), so that the data about the activity is sent anyway, if for some reason it was not delivered in real time.
 
 ```
 
