@@ -1,4 +1,4 @@
-## VZlog:  fast dependency-free user behaivor tracker for Web ##
+## VZlog:  fast dependency-free user behavior tracker for Web ##
 
 ### Why? ###
 * VZLog tracks user activity on your website and dispatches it to any API on YOUR server;
