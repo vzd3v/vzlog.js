@@ -271,17 +271,17 @@
 
 		var filter=this.options.click.on;
 
-		var only_outbound_links=false;
-		if(filter==='only_outbound_links') { only_outbound_links=true; filter='a'; }
-		if(Array.isArray(filter)) {
-			filter=filter.slice();
-			let inb_indx=filter.indexOf('only_outbound_links');
-			if(inb_indx>-1) {
-				only_outbound_links=true;
-				delete filter[inb_indx];
-			}
-			filter=filter.implode(',');
-		}
+                var only_outbound_links=false;
+                if(filter==='only_outbound_links') { only_outbound_links=true; filter='a'; }
+                if(Array.isArray(filter)) {
+                        filter=filter.slice();
+                        let inb_indx=filter.indexOf('only_outbound_links');
+                        if(inb_indx>-1) {
+                                only_outbound_links=true;
+                                filter.splice(inb_indx,1);
+                        }
+                        filter=filter.join(',');
+                }
 		if(filter&&!el.closest(filter)) { return; }
 
 		this._last_event=e;
