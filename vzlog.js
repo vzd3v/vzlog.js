@@ -120,7 +120,7 @@ class VZlog {
     // Bind event listeners
 
     if (
-      options == "click" ||
+      options === "click" ||
       (Array.isArray(options) && options.indexOf("click") > -1) ||
       (this._isObject(options) && "click" in options)
     ) {
@@ -129,7 +129,7 @@ class VZlog {
     }
 
     if (
-      options == "scroll" ||
+      options === "scroll" ||
       (Array.isArray(options) && options.indexOf("scroll") > -1) ||
       (this._isObject(options) && "scroll" in options)
     ) {
@@ -147,7 +147,7 @@ class VZlog {
     }
 
     if (
-      options == "browser" ||
+      options === "browser" ||
       (Array.isArray(options) && options.indexOf("browser") > -1) ||
       (this._isObject(options) && "browser" in options)
     ) {
@@ -161,7 +161,7 @@ class VZlog {
     }
 
     if (
-      options == "activity" ||
+      options === "activity" ||
       (Array.isArray(options) && options.indexOf("activity") > -1) ||
       (this._isObject(options) && "activity" in options)
     ) {
@@ -234,11 +234,11 @@ class VZlog {
 
     data.hardware = {
       memory:
-        typeof navigator.deviceMemory != "undefined"
+        typeof navigator.deviceMemory !== "undefined"
           ? navigator.deviceMemory
           : null,
       cpu_cores:
-        typeof navigator.hardwareConcurrency != "undefined"
+        typeof navigator.hardwareConcurrency !== "undefined"
           ? navigator.hardwareConcurrency
           : null,
     };
@@ -300,7 +300,7 @@ class VZlog {
    */
   _listenerClick(e) {
     const ev_btn = e.button; // 0=main(left), 1=middle(mouse wheel), 2=secondary(right) https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
-    if ([0, 1].indexOf(ev_btn) == -1) {
+    if ([0, 1].indexOf(ev_btn) === -1) {
       return;
     } // track only main and new tab (wheel)
 
@@ -502,9 +502,9 @@ class VZlog {
    */
   getPrettyPathToElement(el, return_array = false) {
     const arr = [];
-    while (el.parentNode != null) {
+    while (el.parentNode !== null) {
       arr.unshift(this.getPrettyElementName(el));
-      if (el.id || el.nodeName == "body") {
+      if (el.id || el.nodeName === "body") {
         break;
       }
       el = el.parentNode;
@@ -519,12 +519,12 @@ class VZlog {
    * @returns {string} smth like div#id or div.classname:nth-of-type(2)
    */
   getPrettyElementName(el) {
-    if (el.hasAttribute("id") && el.id != "") {
+    if (el.hasAttribute("id") && el.id !== "") {
       return el.nodeName.toLowerCase() + "#" + el.id;
     }
 
     const el_tag = el.nodeName.toLowerCase();
-    if (el_tag == "body") {
+    if (el_tag === "body") {
       return "body";
     }
 
